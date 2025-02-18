@@ -11,6 +11,7 @@ time_domain_entry sub entity,
     owns time_domain_reference, 
     owns value_long,
     owns value_datetime,
+    owns is_active,
     plays precedence_ordering:earlier, 
     plays precedence_ordering:later,
     plays global_ordering:earlier, 
@@ -20,6 +21,8 @@ time_domain_entry sub entity,
     plays entry_of_domain:entry,
     plays time_data_in_entry:entry;
 
+# If flase then node will not be considered wenn infering global-orderings
+is_active sub attribute, value boolean;
 
 value_long sub attribute,
     value long,
@@ -62,8 +65,8 @@ global_equality sub relation,
 rule intra_domain_ordering:
 when {
      ## The condition 
-    $te1 isa time_domain_entry;
-    $te2 isa time_domain_entry;
+    $te1 isa time_domain_entry, has is_active true;
+    $te2 isa time_domain_entry, has is_active true;
     $td isa time_domain;
     $ts1 isa attribute;
     $ts2 isa attribute;
@@ -82,8 +85,8 @@ when {
 rule global_ordering_if_precedence:
 when {
      ## The condition 
-    $te1 isa time_domain_entry;
-    $te2 isa time_domain_entry;
+    $te1 isa time_domain_entry, has is_active true;
+    $te2 isa time_domain_entry, has is_active true;
     $lt12 (earlier:$te1, later:$te2) isa precedence_ordering;
     
 } then {
@@ -97,9 +100,9 @@ when {
 rule global_ordering_transitivity_if_intra_domain:
 when {
      ## The condition 
-    $te1 isa time_domain_entry;
-    $te2 isa time_domain_entry;
-    $te3 isa time_domain_entry;
+    $te1 isa time_domain_entry, has is_active true;
+    $te2 isa time_domain_entry, has is_active true;
+    $te3 isa time_domain_entry, has is_active true;
     #$lt12 (earlier:$te1, later:$te2) isa global_ordering;
     $lt23 (earlier:$te2, later:$te3) isa global_ordering;
     
@@ -121,9 +124,9 @@ when {
 rule global_ordering_transitivity_if_precedence:
 when {
      ## The condition 
-    $te1 isa time_domain_entry;
-    $te2 isa time_domain_entry;
-    $te3 isa time_domain_entry;
+    $te1 isa time_domain_entry, has is_active true;
+    $te2 isa time_domain_entry, has is_active true;
+    $te3 isa time_domain_entry, has is_active true;
     $lt12 (earlier:$te1, later:$te2) isa precedence_ordering;
     $lt23 (earlier:$te2, later:$te3) isa global_ordering;
     
@@ -133,6 +136,9 @@ when {
 };
 
 
+# Hier werden auch nicht-aktive nodes genommen, weil es einfach nur darum geht equality-nodes bidirektional zu machen
+# in python wird dann eine Richtung eh einfach verworfen, aber deswegen ist es schon wichtig (bei der aktuellen implementierung)
+# dass beide drinnen sind, weil ja sonst z.T. von aktiven nodes equality-edges vllt verschwinden
 rule global_equality_reflexivity:
 when {
     ## The condition 
@@ -147,9 +153,9 @@ when {
 rule union_transitivity_earlier:
 when {
     ## The condition 
-    $earlier_entry_1 isa time_domain_entry;
-    $equal_entry_1 isa time_domain_entry;
-    $equal_entry_2 isa time_domain_entry;    
+    $earlier_entry_1 isa time_domain_entry, has is_active true;
+    $equal_entry_1 isa time_domain_entry, has is_active true;
+    $equal_entry_2 isa time_domain_entry, has is_active true;    
     $equ (left:$equal_entry_1, right:$equal_entry_2) isa global_equality;
     $tl1 (earlier:$earlier_entry_1, later:$equal_entry_1) isa global_ordering;
 } then {
@@ -160,9 +166,9 @@ when {
 rule union_transitivity_later:
 when {
     ## The condition 
-    $equal_entry_1 isa time_domain_entry;
-    $equal_entry_2 isa time_domain_entry;
-    $later_entry_2 isa time_domain_entry;
+    $equal_entry_1 isa time_domain_entry, has is_active true;
+    $equal_entry_2 isa time_domain_entry, has is_active true;
+    $later_entry_2 isa time_domain_entry, has is_active true;
     $equ (left:$equal_entry_1, right:$equal_entry_2) isa global_equality;
     $tl2 (earlier:$equal_entry_2, later:$later_entry_2) isa global_ordering;
 } then {
