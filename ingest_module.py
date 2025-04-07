@@ -109,9 +109,11 @@ with TypeDB.core_driver("localhost:1729") as driver:
         get_domain_query = "match $td isa time_domain, has time_domain_reference \"{}\"; get $td;"
         insert_domain_query = "insert $td isa time_domain, has time_domain_reference \"{}\";"
         get_datetime_entry_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {}; get $entry;"
-        insert_datetime_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {};"
+        # Add is_active=true to all time_domain_entry
+        insert_datetime_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {}, has is_active true;"
         get_long_entry_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {}; get $entry;" 
-        insert_long_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {};" 
+        # Add is_active=true to all time_domain_entry
+        insert_long_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {}, has is_active true;" 
         add_domain_to_entries_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\"; $domain isa time_domain, has time_domain_reference \"{}\"; insert $inside_relation (entry:$entry, time_domain:$domain) isa entry_of_domain;"
         add_long_timestamp_relation_query = "match $entry isa time_domain_entry, has time_domain_reference $domain_name, has value_long $ts; insert $rel (entry:$entry, time_data:$ts) isa time_data_in_entry;";
         add_datetime_timestamp_relation_query = "match $entry isa time_domain_entry, has time_domain_reference $domain_name, has value_datetime $ts; insert $rel (entry:$entry, time_data:$ts) isa time_data_in_entry;";
