@@ -25,6 +25,8 @@ parser.add_argument('-c', '--coincidence', dest='coincidences_string', help="Spe
 parser.add_argument('-p', '--precedence', dest='precedences_string', help="Specify the time domains with precedence using a<b")
 parser.add_argument('-e', '--encoding', dest='encoding', default="utf-16", help="Specify the encoding used in the .tsv file, default: utf-16")
 parser.add_argument('-t', '--timestamp-format', dest='timestamp_format_string', default="%d/%m/%Y  %H:%M:%S", help="Specify the format string used for the timestamps in the .tsv file, default: %d/%m/%Y  %H:%M:%S, shortcut for sqlite-file-example: 'firefox'")
+parser.add_argument('-m', '--metadata-col', dest='meta_data_col', type=int, help="Column index (0-based) for the metadata string")
+
 
 
 args = parser.parse_args()
@@ -90,6 +92,9 @@ else:
     precedences = []
 print("Precedence: {}".format(precedences))
 
+meta_data_col = args.meta_data_col
+print(f"Meta-Data: {meta_data_col}")
+
 for line in tsv_file:
     tsv_lines.append(line)
 tsv_header = tsv_lines.pop(0)
@@ -110,10 +115,10 @@ with TypeDB.core_driver("localhost:1729") as driver:
         insert_domain_query = "insert $td isa time_domain, has time_domain_reference \"{}\";"
         get_datetime_entry_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {}; get $entry;"
         # Add is_active=true to all time_domain_entry
-        insert_datetime_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {}, has is_active true;"
+        insert_datetime_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\", has value_datetime {}, has is_active true, has meta_data \"{}\";"
         get_long_entry_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {}; get $entry;" 
         # Add is_active=true to all time_domain_entry
-        insert_long_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {}, has is_active true;" 
+        insert_long_entry_query = "insert $entry isa time_domain_entry, has time_domain_reference \"{}\" , has value_long {}, has is_active true, has meta_data \"{}\";" 
         add_domain_to_entries_query = "match $entry isa time_domain_entry, has time_domain_reference \"{}\"; $domain isa time_domain, has time_domain_reference \"{}\"; insert $inside_relation (entry:$entry, time_domain:$domain) isa entry_of_domain;"
         add_long_timestamp_relation_query = "match $entry isa time_domain_entry, has time_domain_reference $domain_name, has value_long $ts; insert $rel (entry:$entry, time_data:$ts) isa time_data_in_entry;";
         add_datetime_timestamp_relation_query = "match $entry isa time_domain_entry, has time_domain_reference $domain_name, has value_datetime $ts; insert $rel (entry:$entry, time_data:$ts) isa time_data_in_entry;";
@@ -151,7 +156,8 @@ with TypeDB.core_driver("localhost:1729") as driver:
                         concepts = [ans.get("entry") for ans in answer_iterator]
                         #Only insert them if they do not exist yet! Future Work: Integrate proveniance
                         if len(concepts) == 0:
-                            answer_iterator = write_transaction.query.insert(insert_long_entry_query.format(tsv_header[col], timestamp))
+                            meta_data = line[meta_data_col] if meta_data_col is not None and len(line) > meta_data_col else ""
+                            answer_iterator = write_transaction.query.insert(insert_long_entry_query.format(tsv_header[col], timestamp, meta_data))
                             concepts = [ans.get("entry") for ans in answer_iterator]
                     print("Inserted all values of time domain {}".format(tsv_header[col]))
                 elif datatypes[idx] == "datetime":
@@ -165,7 +171,8 @@ with TypeDB.core_driver("localhost:1729") as driver:
                         concepts = [ans.get("entry") for ans in answer_iterator]
                         #Only insert them if they do not exist yet! Future Work: Proveniance
                         if len(concepts) == 0:
-                            answer_iterator = write_transaction.query.insert(insert_datetime_entry_query.format(tsv_header[col], timestamp))
+                            meta_data = line[meta_data_col] if meta_data_col is not None and len(line) > meta_data_col else ""
+                            answer_iterator = write_transaction.query.insert(insert_datetime_entry_query.format(tsv_header[col], timestamp, meta_data))
                             concepts = [ans.get("entry") for ans in answer_iterator]
                     print("Inserted all values of time domain {}".format(tsv_header[col]))
                 else:

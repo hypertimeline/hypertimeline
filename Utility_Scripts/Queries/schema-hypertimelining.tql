@@ -12,6 +12,7 @@ time_domain_entry sub entity,
     owns value_long,
     owns value_datetime,
     owns is_active,
+    owns meta_data,
     plays precedence_ordering:earlier, 
     plays precedence_ordering:later,
     plays global_ordering:earlier, 
@@ -23,6 +24,8 @@ time_domain_entry sub entity,
 
 # If flase then node will not be considered wenn infering global-orderings
 is_active sub attribute, value boolean;
+
+meta_data sub attribute, value string;
 
 value_long sub attribute,
     value long,
