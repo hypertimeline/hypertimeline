@@ -21,7 +21,8 @@ parser = argparse.ArgumentParser(description='Inserts time domains and time doma
 parser.add_argument('filename', metavar='f', help='the .tsv file that contains the time domains and their entries')
 parser.add_argument('time_domains', nargs="+", help="Specify which columns contain time domains and their data type, e.g., 1=datetime 2=long", metavar="COL_NUMBER=TYPE")
 parser.add_argument('-db', '--database', dest='database_name', help="Specify the database's name", default="Hypertimelining_III")
-parser.add_argument('-c', '--coincidence', dest='coincidences_string', help="Specify the time domains with coincidence using a,b,c")
+parser.add_argument('-c', '--coincidence', dest='coincidences_string', action='append', # allows multiple -c
+                     help="Specify the time domains with coincidence using -c a,b -c c,d")
 parser.add_argument('-p', '--precedence', dest='precedences_string', help="Specify the time domains with precedence using a<b")
 parser.add_argument('-e', '--encoding', dest='encoding', default="utf-16", help="Specify the encoding used in the .tsv file, default: utf-16")
 parser.add_argument('-t', '--timestamp-format', dest='timestamp_format_string', default="%d/%m/%Y  %H:%M:%S", help="Specify the format string used for the timestamps in the .tsv file, default: %d/%m/%Y  %H:%M:%S, shortcut for sqlite-file-example: 'firefox'")
@@ -67,13 +68,17 @@ if args.coincidences_string == "" and args.precedences_string == "":
     sys.exit(1)
     
 
+coincidences = []
 if args.coincidences_string:
-    coincidences_string_arr = args.coincidences_string.split(",")
-    #print(coincidences_string_arr)
-    coincidences = [locale.atoi(x) for x in coincidences_string_arr]
-    coincidences = list(it.combinations(coincidences, 2)) #would also be enough to insert them in a pair-wise chain and not every combination, but this is a one-liner
-else:
-    coincidences = []
+    for group in args.coincidences_string: # for every sperate -c there is a own group
+        group_arr = group.split(",")
+        #print(coincidences_string_arr)
+        group_cols = [locale.atoi(x) for x in group_arr]
+        if len(group_cols) < 2:
+            print(f"Skipping coincidence group with less than 2 items: {group}")
+            continue
+        group_pairs = list(it.combinations(group_cols, 2)) #would also be enough to insert them in a pair-wise chain and not every combination, but this is a one-liner
+        coincidences.extend(group_pairs)
 print("Coincidences: {}".format(coincidences))
 
 if args.precedences_string:
