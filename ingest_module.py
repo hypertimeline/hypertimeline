@@ -26,7 +26,8 @@ parser.add_argument('-c', '--coincidence', dest='coincidences_string', action='a
 parser.add_argument('-p', '--precedence', dest='precedences_string', help="Specify the time domains with precedence using a<b")
 parser.add_argument('-e', '--encoding', dest='encoding', default="utf-16", help="Specify the encoding used in the .tsv file, default: utf-16")
 parser.add_argument('-t', '--timestamp-format', dest='timestamp_format_string', default="%d/%m/%Y  %H:%M:%S", help="Specify the format string used for the timestamps in the .tsv file, default: %d/%m/%Y  %H:%M:%S, shortcut for sqlite-file-example: 'firefox'")
-parser.add_argument('-m', '--metadata-col', dest='meta_data_col', type=int, help="Column index (0-based) for the metadata string")
+parser.add_argument('-m', '--metadata-col', dest='meta_data_col', action='append', # allows multiple -m
+                    help="Column index (0-based) for the metadata-json-string followed by column-indexes that the meta-data belongs to")
 
 
 
@@ -97,8 +98,21 @@ else:
     precedences = []
 print("Precedence: {}".format(precedences))
 
-meta_data_col = args.meta_data_col
-print(f"Meta-Data: {meta_data_col}")
+
+meta_data_dict = {col: None for col in cols}
+
+if args.meta_data_col:
+    for group in args.meta_data_col: # for every sperate -m there is a own group
+        group_arr = group.split(",")
+        #print(coincidences_string_arr)
+        group_cols = [locale.atoi(x) for x in group_arr]
+        if len(group_cols) < 2:
+            print(f"Skipping meta-data group with less than 2 items: {group}")
+            continue
+        metadata_col = group_cols.pop(0)
+        for group_col in group_cols: # length is at least 1
+            meta_data_dict[group_col] = metadata_col # Note: only one meta-data column per time domain!
+print("Meta-Data: ", meta_data_dict)
 
 for line in tsv_file:
     tsv_lines.append(line)
@@ -161,7 +175,7 @@ with TypeDB.core_driver("localhost:1729") as driver:
                         concepts = [ans.get("entry") for ans in answer_iterator]
                         #Only insert them if they do not exist yet! Future Work: Integrate proveniance
                         if len(concepts) == 0:
-                            meta_data = line[meta_data_col] if meta_data_col is not None and len(line) > meta_data_col else ""
+                            meta_data = line[meta_data_dict[col]] if meta_data_dict[col] is not None and len(line) > meta_data_dict[col] else ""
                             answer_iterator = write_transaction.query.insert(insert_long_entry_query.format(tsv_header[col], timestamp, meta_data))
                             concepts = [ans.get("entry") for ans in answer_iterator]
                     print("Inserted all values of time domain {}".format(tsv_header[col]))
@@ -176,7 +190,7 @@ with TypeDB.core_driver("localhost:1729") as driver:
                         concepts = [ans.get("entry") for ans in answer_iterator]
                         #Only insert them if they do not exist yet! Future Work: Proveniance
                         if len(concepts) == 0:
-                            meta_data = line[meta_data_col] if meta_data_col is not None and len(line) > meta_data_col else ""
+                            meta_data = line[meta_data_dict[col]] if meta_data_dict[col] is not None and len(line) > meta_data_dict[col] else ""
                             answer_iterator = write_transaction.query.insert(insert_datetime_entry_query.format(tsv_header[col], timestamp, meta_data))
                             concepts = [ans.get("entry") for ans in answer_iterator]
                     print("Inserted all values of time domain {}".format(tsv_header[col]))
