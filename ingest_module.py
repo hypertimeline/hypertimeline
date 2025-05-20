@@ -10,11 +10,14 @@ import os
 import sys
 from typedb.driver import *
 
+class Precedence:
+    def __init__(self, targetDomainCol: int, sourceDomainCol: int, sourceValueCol: Any):
+        self.sourceDomainCol = sourceDomainCol
+        self.targetDomainCol = targetDomainCol
+        self.sourceValueCol = sourceValueCol
 
 cols = []
 datatypes = []
-coincidences = []
-precedences = []
 
 
 parser = argparse.ArgumentParser(description='Inserts time domains and time domain entries into the database.')
@@ -23,7 +26,10 @@ parser.add_argument('time_domains', nargs="+", help="Specify which columns conta
 parser.add_argument('-db', '--database', dest='database_name', help="Specify the database's name", default="Hypertimelining_III")
 parser.add_argument('-c', '--coincidence', dest='coincidences_string', action='append', # allows multiple -c
                      help="Specify the time domains with coincidence using -c a,b -c c,d")
-parser.add_argument('-p', '--precedence', dest='precedences_string', help="Specify the time domains with precedence using a<b")
+parser.add_argument('-p', '--precedence', dest='precedences_string', action='append', # allows multiple -p
+                     help="Specify in which column the precedences a time-domain b and d are stored using -p col_B,col_A,col_A_value" \
+                     "for A->B whereby col_A represents the column the timedomain of A is defined and col_A_value is the column" \
+                     "where B stores which value of time-domain A is in precedence to the entry in B")
 parser.add_argument('-e', '--encoding', dest='encoding', default="utf-16", help="Specify the encoding used in the .tsv file, default: utf-16")
 parser.add_argument('-t', '--timestamp-format', dest='timestamp_format_string', default="%d/%m/%Y  %H:%M:%S", help="Specify the format string used for the timestamps in the .tsv file, default: %d/%m/%Y  %H:%M:%S, shortcut for sqlite-file-example: 'firefox'")
 parser.add_argument('-m', '--metadata-col', dest='meta_data_col', action='append', # allows multiple -m
@@ -82,20 +88,18 @@ if args.coincidences_string:
         coincidences.extend(group_pairs)
 print("Coincidences: {}".format(coincidences))
 
+precedences : list[Precedence] = []
 if args.precedences_string:
-    precedences_string_arr = args.precedences_string.split(",")
-    #print(precedences_string_arr)
-    for prec_str in precedences_string_arr:
-        if "<" in prec_str:
-            prec_pair = prec_str.split("<")
-            precedences.append((locale.atoi(prec_pair[0]), locale.atoi(prec_pair[1])))
-        elif ">" in prec_str:
-            prec_str.split(">")
-            precedences.append((locale.atoi(prec_pair[1]), locale.atoi(prec_pair[0])))
-        else:
-            print("Parsing Error: Please specify  precedence in the format of: col_A<col_B,col_B<col_C")
-else:
-    precedences = []
+    for group in args.precedences_string: # for every sperate -p there is a own group
+        group_arr = group.split(",")
+        group_elements = [locale.atoi(x) for x in group_arr]
+        if len(group_elements) < 3: 
+            print(f"Parsing Error for {group}: Please specify  precedence in the format of: -p col_B,col_A,col_value_A for A->B")
+            continue
+        # This could be extended to allow multiple source_IDs to be passed here and multiple precedences generated
+        precedences.append(Precedence(targetDomainCol=group_elements[0], 
+                                      sourceDomainCol=group_elements[1], 
+                                      sourceValueCol=group_elements[2]))
 print("Precedence: {}".format(precedences))
 
 
@@ -118,7 +122,8 @@ for line in tsv_file:
     tsv_lines.append(line)
 tsv_header = tsv_lines.pop(0)
 
-print(tsv_lines)
+# Because of the possible meta-data per line we can't just print out all the lines
+print('#lines:',len(tsv_lines))
 
 with TypeDB.core_driver("localhost:1729") as driver:
     print("Connecting to the server")
@@ -254,29 +259,35 @@ with TypeDB.core_driver("localhost:1729") as driver:
         print("Request #4: Insert Global Ordering Relations for the rows due to precedence") 
         with session.transaction(TransactionType.WRITE) as write_transaction:
             for line in tsv_lines:
-                for col_pair in precedences:
+                for precedence in precedences:
+                    target_type = datatypes_dict[precedence.targetDomainCol]
+                    source_type = datatypes_dict[precedence.sourceDomainCol]
+                    target_string = line[precedence.targetDomainCol]
+                    source_string = line[precedence.sourceValueCol]
+
                     left_value = ""
                     right_value = ""
-                    if line[col_pair[0]] == "":
+                    if source_string == "":
                         continue
-                    elif datatypes_dict[col_pair[0]] == "long":
-                        left_value = locale.atoi(line[col_pair[0]])
-                    elif datatypes_dict[col_pair[0]] == "datetime":
-                        datetime_object = datetime.strptime(line[col_pair[0]], timestamp_format_string)
+                    elif source_type == "long":
+                        left_value = locale.atoi(source_string)
+                    elif source_type == "datetime":
+                        datetime_object = datetime.strptime(source_string, timestamp_format_string)
                         left_value = datetime.isoformat(datetime_object)
                     else:
-                        print("Could not determine datatype of {}", tsv_header[col_pair[0]])
-                    if line[col_pair[1]] == "":
+                        print("Could not determine datatype of {}", tsv_header[precedence.sourceDomainCol])
+                        
+                    if target_string == "":
                         continue;
-                    elif datatypes_dict[col_pair[1]] == "long":
-                        right_value = locale.atoi(line[col_pair[1]])
-                    elif datatypes_dict[col_pair[1]] == "datetime":
-                        datetime_object = datetime.strptime(line[col_pair[1]], timestamp_format_string)
+                    elif target_type == "long":
+                        right_value = locale.atoi(target_string)
+                    elif target_type == "datetime":
+                        datetime_object = datetime.strptime(target_string, timestamp_format_string)
                         right_value = datetime.isoformat(datetime_object)
                     else:
-                        print("Could not determine datatype of {}", tsv_header[col_pair[1]])
+                        print("Could not determine datatype of {}", tsv_header[precedence.targetDomainCol])
                     #print(insert_ordering_query.format(tsv_header[col_pair[0]], tsv_header[col_pair[1]], left_value, right_value))
-                    answer_iterator = write_transaction.query.insert(insert_ordering_query.format(tsv_header[col_pair[0]], tsv_header[col_pair[1]], left_value, right_value))
+                    answer_iterator = write_transaction.query.insert(insert_ordering_query.format(tsv_header[precedence.sourceDomainCol], tsv_header[precedence.targetDomainCol], left_value, right_value))
                     concepts = [ans.get("precedence_ordering") for ans in answer_iterator]
                     print("Inserted: {0}".format(concepts[0].as_relation().get_iid()))
             write_transaction.commit()
