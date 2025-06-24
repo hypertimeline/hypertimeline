@@ -103,7 +103,7 @@ if args.precedences_string:
 print("Precedence: {}".format(precedences))
 
 
-meta_data_dict = {col: None for col in cols}
+meta_data_dict : dict[int, int] = {} # = {col: None for col in cols}
 
 if args.meta_data_col:
     for group in args.meta_data_col: # for every sperate -m there is a own group
@@ -118,8 +118,9 @@ if args.meta_data_col:
             meta_data_dict[group_col] = metadata_col # Note: only one meta-data column per time domain!
 print("Meta-Data: ", meta_data_dict)
 
-for line in tsv_file:
+for i, line in enumerate(tsv_file):
     tsv_lines.append(line)
+
 tsv_header = tsv_lines.pop(0)
 
 # Because of the possible meta-data per line we can't just print out all the lines
